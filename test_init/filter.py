@@ -71,6 +71,7 @@ flat_data = parser.flatten_data(parsed_data)
 df = pd.DataFrame(flat_data)
 df.to_excel('output.xlsx', index=False)
 df.to_csv('output.csv', index=False)
+#here I refined both csv and xlsx formats to compare the differences, if any.
 
 
 """
