@@ -23,6 +23,7 @@ The data 'en_product3_181.xml' is a 4.1MB for rare neurological diseases.
 """
 import pandas as pd
 import xml.etree.ElementTree as ET
+import os
 
 class Disease:
     
@@ -100,3 +101,6 @@ diseases = parser.parse_diseases()
 
 diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
 print(diseases_df)
+
+
+os.makedirs('diseases_data', exist_ok=True)
