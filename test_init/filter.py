@@ -26,6 +26,9 @@ import xml.etree.ElementTree as ET
 import os
 import tqdm as tqdm
 
+
+raw_data_path = './in_xml'
+
 class Disease:
     
     def __init__(self,
@@ -41,7 +44,9 @@ class Disease:
         self.meta_data = meta_data
         
     def to_dict(self):
+        
         return {
+            
             'ClassificationID': self.classification_id,
             'DisorderID': self.disorder_id,
             'DisorderType' : self.disorder_type,
@@ -58,6 +63,7 @@ class OrphanetXMLParser:
         self.meta_data = self.extract_meta_data()
         
     def extract_meta_data(self):
+        
         """
         will be attributing meta_data from XML file to further
         analyse the data and find the most relevant interlinks
@@ -66,30 +72,50 @@ class OrphanetXMLParser:
         or Orpha Number (dont confuse it with orpha code).
         """
         
-        meta_data_parse = []
-        
-        for meta in self.root.findall('.//Availability'):
+        metadata = {
             
-            full_name = meta.find('FullName').text\
-                if meta.find('FullName') is not None else 'Unknown'
-                
-            short_identifier = meta.find('ShortIdentifier').text\
-                if meta.find('ShortIdentifier') is not None else 'Unknown'
-                
-        self.meta_data =\
-            { full_name : meta_data_parse,
-                short_identifier : meta_data_parse
-                
+            'licence_full_name' : 'Unknown',
+            'licence_short_name' : 'Unknown',
+            'licence_legal_code' : 'Unknown',
+            'classification_count' : 'Unknown',
+            'classification_id' : 'Unknown',
+            'orpha_number' : 'Unknown',
+            'classification_name' : 'Unknown'
+            
         }
         
+        licence = self.root.find('.//Licence')
+        
+        if licence is not None:
+            metadata['licence_full_name'] = licence.findtext('FullName', default='Unknown')
+            metadata['licence_short_name'] = licence.findtext('ShortIdentifier', default='Unknown')
+            metadata['licence_legal_code'] = licence.findtext('LegalCode', default='Unknown')
+            
+        classification_list = self.root.find('.//ClassificationList')
+        
+        if classification_list is not None:
+            metadata['classification_count'] = classification_list.attrib.get('count', 'Unknown')
+            classification = classification_list.find('.//Classification')
+            
+            if classification is not None:
+                metadata['classification_id'] = classification.attrib.get('id','unknown')
+                metadata['orpha_number'] = classification.findtext('OrphaNumber', default='Unknown')
+                metadata['classification_name'] = classification.findtext('Name', default='Unknown')
+        
+        return metadata
+        
     def parse_diseases(self):
+        
         diseases = [] # list of diseases
+        
+        classification_id = self.root.find('.//ClassificationList/Classification')
+        classification_id = classification_id.attrib.get('id','Unknown')\
+            if classification_id is not None else 'Unknown'
         
             
         for clls in self.root.findall('.//ClassificationNode'): # find all the disorders, nested in the root 
 
-            classification_id = clls.attrib.get('id', 'unknown')
-            
+                        
             disorder_id = clls.find('.//Disorder').attrib.get('id', 'unknown')\
                 if clls.find('.//Disorder') is not None else 'Unknown' # find the disorder id, nested in the disorder
                 
@@ -111,13 +137,30 @@ class OrphanetXMLParser:
             diseases.append(disease)
         
         return diseases
+
+xml_file = None
+
+for root, dirs, files in os.walk(raw_data_path):
+    for file in files:
+        if file.endswith('.xml'):
+            xml_file = os.path.join(root, file)
+            break
+        if xml_file:
+            break
+        
+if xml_file is None:
+    print('No XML file found')
+    exit()
     
-parser = OrphanetXMLParser('./in_xml/en_product3_181.xml')
+
+parser = OrphanetXMLParser(xml_file)
+
 
 diseases = parser.parse_diseases()
 
 diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
 print(diseases_df)
+
 
 def main():
     directory = 'test_out/diseases_data'
