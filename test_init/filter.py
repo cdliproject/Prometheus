@@ -1,5 +1,8 @@
 """
-url = 'https://stackoverflow.com/questions/2869564/xml-filtering-with-python'
+useful urls = 
+            
+            'https://stackoverflow.com/questions/2869564/xml-filtering-with-python'
+            'https://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python'
 
 @themkdemiiir stated:
 
@@ -24,7 +27,7 @@ The data 'en_product3_181.xml' is a 4.1MB for rare neurological diseases.
 import pandas as pd
 import xml.etree.ElementTree as ET
 import os
-import tqdm as tqdm
+from tqdm import tqdm
 
 
 raw_data_path = './in_xml'
@@ -85,18 +88,16 @@ class OrphanetXMLParser:
         }
         
         licence = self.root.find('.//Licence')
-        
         if licence is not None:
             metadata['licence_full_name'] = licence.findtext('FullName', default='Unknown')
             metadata['licence_short_name'] = licence.findtext('ShortIdentifier', default='Unknown')
             metadata['licence_legal_code'] = licence.findtext('LegalCode', default='Unknown')
             
         classification_list = self.root.find('.//ClassificationList')
-        
         if classification_list is not None:
             metadata['classification_count'] = classification_list.attrib.get('count', 'Unknown')
+
             classification = classification_list.find('.//Classification')
-            
             if classification is not None:
                 metadata['classification_id'] = classification.attrib.get('id','unknown')
                 metadata['orpha_number'] = classification.findtext('OrphaNumber', default='Unknown')
@@ -163,16 +164,26 @@ print(diseases_df)
 
 
 def main():
+
     directory = 'test_out/diseases_data'
     os.makedirs(directory, exist_ok=True)
+
+    xml_files = [os.path.join(root, file) for root, dirs, files in os.walk(raw_data_path)\
+        for file in files if file.endswith('.xml')]
+
+    all_diseases_df = pd.DataFrame()
     
-    file_number = 1
-    while os.path.exists(os.path.join(directory, f'diseases{file_number}.csv')):
-        file_number += 1
+    for xml_file in tqdm(xml_files, desc="Processing XML Files..."):
+        parser = OrphanetXMLParser(xml_file)
+        diseases = parser.parse_diseases()
+        diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
+        all_diseases_df = pd.concat([all_diseases_df, diseases_df], ignore_index=True)
+
         
-    file_path = os.path.join(directory, f'diseases{file_number}.csv')
-    diseases_df.to_csv(file_path, index=False)
-    print(f'File saved to {file_path}')
+    combined_file_path = os.path.join(directory, 'combined_diseases.csv')
+    all_diseases_df.to_csv(combined_file_path, index=False)
+    print(f'Combined data saved to {combined_file_path}')
+    
 
 if __name__ == '__main__':
     main()
