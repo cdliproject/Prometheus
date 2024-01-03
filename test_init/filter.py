@@ -89,9 +89,10 @@ class OrphanetXMLParser:
         for clls in self.root.findall('.//ClassificationNode'): # find all the disorders, nested in the root 
 
             classification_id = clls.attrib.get('id', 'unknown')
-            disorder_id = clls.attrib.get('id', 'unknown') # find the disorder id, nested in the disorder
             
-            
+            disorder_id = clls.find('.//Disorder').attrib.get('id', 'unknown')\
+                if clls.find('.//Disorder') is not None else 'Unknown' # find the disorder id, nested in the disorder
+                
             disorder_type = clls.find('.//DisorderType/Name').text\
                 if clls.find('.//DisorderType/Name') is not None else 'Unknown' # find the disorder type, nested in the disorder
             
@@ -111,7 +112,7 @@ class OrphanetXMLParser:
         
         return diseases
     
-parser = OrphanetXMLParser('en_product3_181.xml')
+parser = OrphanetXMLParser('./in_xml/en_product3_181.xml')
 
 diseases = parser.parse_diseases()
 
@@ -119,9 +120,16 @@ diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
 print(diseases_df)
 
 def main():
-    os.makedirs('diseases_data', exist_ok=True)
-    diseases_df.to_csv('diseases_data/diseases3.csv', index=False)
-    return
+    directory = 'test_out/diseases_data'
+    os.makedirs(directory, exist_ok=True)
+    
+    file_number = 1
+    while os.path.exists(os.path.join(directory, f'diseases{file_number}.csv')):
+        file_number += 1
+        
+    file_path = os.path.join(directory, f'diseases{file_number}.csv')
+    diseases_df.to_csv(file_path, index=False)
+    print(f'File saved to {file_path}')
 
 if __name__ == '__main__':
     main()
