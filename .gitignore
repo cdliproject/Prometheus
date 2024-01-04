@@ -396,3 +396,11 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Finder folder settings
+.DS_Store
+
+#gitignore
+.gitignore
+
+prometheus_test/orphanet_data/.DS_Store
