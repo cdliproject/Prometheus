@@ -24,6 +24,7 @@ We are going to use the ElementTree lib to parse the XML file.
 The data 'en_product3_181.xml' is a 4.1MB for rare neurological diseases.
 
 """
+
 import pandas as pd
 import xml.etree.ElementTree as ET
 import os
@@ -31,6 +32,9 @@ from tqdm import tqdm
 
 
 raw_data_path = '../orphanet_data/orphanet_xml'
+directory = '../orphanet_data/orphanet_csv'
+non_xml_file_path = '../orphanet_data/orphanet_non_xml'
+
 
 class Disease:
     
@@ -57,10 +61,13 @@ class Disease:
             'Name': self.name,
             'ExpertLink': self.expert_link,
             'MetaData': self.meta_data
+            
         }
         
 class OrphanetXMLParser:
+    
     def __init__(self,xml_file): # tree structure of the xml file
+        
         self.tree = ET.parse(xml_file)
         self.root = self.tree.getroot()
         self.meta_data = self.extract_meta_data()
@@ -88,16 +95,19 @@ class OrphanetXMLParser:
         }
         
         licence = self.root.find('.//Licence')
+        
         if licence is not None:
             metadata['licence_full_name'] = licence.findtext('FullName', default='Unknown')
             metadata['licence_short_name'] = licence.findtext('ShortIdentifier', default='Unknown')
             metadata['licence_legal_code'] = licence.findtext('LegalCode', default='Unknown')
             
         classification_list = self.root.find('.//ClassificationList')
+        
         if classification_list is not None:
             metadata['classification_count'] = classification_list.attrib.get('count', 'Unknown')
 
             classification = classification_list.find('.//Classification')
+            
             if classification is not None:
                 metadata['classification_id'] = classification.attrib.get('id','unknown')
                 metadata['orpha_number'] = classification.findtext('OrphaNumber', default='Unknown')
@@ -139,37 +149,15 @@ class OrphanetXMLParser:
         
         return diseases
 
-xml_file = None
 
-for root, dirs, files in os.walk(raw_data_path):
-    for file in files:
-        if file.endswith('.xml'):
-            xml_file = os.path.join(root, file)
-            break
-        if xml_file:
-            break
-        
-if xml_file is None:
-    print('No XML file found')
-    exit()
-    
-
-parser = OrphanetXMLParser(xml_file)
-
-diseases = parser.parse_diseases()
-
-diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
-print(diseases_df)
+def get_xml_files(directory):
+    return [os.path.join(root, file)\
+        for root, _, files in os.walk(directory)\
+            for file in files if file.endswith('.xml')]
 
 
-def main():
 
-    directory = '../orphanet_data/orphanet_data_csv'
-    os.makedirs(directory, exist_ok=True)
-
-    xml_files = [os.path.join(root, file) for root, dirs, files in os.walk(raw_data_path)\
-        for file in files if file.endswith('.xml')]
-
+def process_progress_bar(xml_files): # might be useful for later
     doty = "."
     returny = 0
     for xml_file in tqdm(xml_files, desc=f"Processing XML Files{doty}]"):
@@ -180,7 +168,13 @@ def main():
                 doty = "."
                 returny = 0
                 break
-            
+        yield xml_file
+        
+    return xml_file
+
+
+def process_xml_files(xml_files, directory):
+    for xml_file in tqdm(xml_files, desc="Processing XML Files"):
         parser = OrphanetXMLParser(xml_file)
         diseases = parser.parse_diseases()
         diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
@@ -190,10 +184,17 @@ def main():
         csv_file_path = os.path.join(directory, csv_file_name)
         
         diseases_df.to_csv(csv_file_path, index=False)
-        print(f'file saved to {csv_file_path}')
-    
+        print(f'File saved to {csv_file_path}')
+
+
+def main():
+    os.makedirs(directory, exist_ok=True)
+    xml_files = get_xml_files(raw_data_path)
+    process_xml_files(xml_files, directory)
+
 
 if __name__ == '__main__':
+    
     main()
     
 
