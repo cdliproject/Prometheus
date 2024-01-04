@@ -403,4 +403,5 @@ FodyWeavers.xsd
 #gitignore
 .gitignore
 
+prometheus_test/orphanet_data/*.DS_Store
 prometheus_test/orphanet_data/.DS_Store
