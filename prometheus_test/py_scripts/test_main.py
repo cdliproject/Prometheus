@@ -172,7 +172,7 @@ def main():
 
     doty = "."
     returny = 0
-    for xml_file in tqdm(xml_files, desc=f"Processing XML Files{returny}]"):
+    for xml_file in tqdm(xml_files, desc=f"Processing XML Files{doty}]"):
         while returny <= 4 :
             doty += "."
             returny += 1
