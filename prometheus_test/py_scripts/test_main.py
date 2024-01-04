@@ -30,7 +30,7 @@ import os
 from tqdm import tqdm
 
 
-raw_data_path = './in_xml'
+raw_data_path = '../orphanet_data/orphanet_xml'
 
 class Disease:
     
@@ -156,7 +156,6 @@ if xml_file is None:
 
 parser = OrphanetXMLParser(xml_file)
 
-
 diseases = parser.parse_diseases()
 
 diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
@@ -165,24 +164,33 @@ print(diseases_df)
 
 def main():
 
-    directory = 'test_out/diseases_data'
+    directory = '../orphanet_data/orphanet_data_csv'
     os.makedirs(directory, exist_ok=True)
 
     xml_files = [os.path.join(root, file) for root, dirs, files in os.walk(raw_data_path)\
         for file in files if file.endswith('.xml')]
 
-    all_diseases_df = pd.DataFrame()
-    
-    for xml_file in tqdm(xml_files, desc="Processing XML Files..."):
+    doty = "."
+    returny = 0
+    for xml_file in tqdm(xml_files, desc=f"Processing XML Files{returny}]"):
+        while returny <= 4 :
+            doty += "."
+            returny += 1
+            if returny == 4:
+                doty = "."
+                returny = 0
+                break
+            
         parser = OrphanetXMLParser(xml_file)
         diseases = parser.parse_diseases()
         diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
-        all_diseases_df = pd.concat([all_diseases_df, diseases_df], ignore_index=True)
-
         
-    combined_file_path = os.path.join(directory, 'combined_diseases.csv')
-    all_diseases_df.to_csv(combined_file_path, index=False)
-    print(f'Combined data saved to {combined_file_path}')
+        base_name = os.path.basename(xml_file)
+        csv_file_name = os.path.splitext(base_name)[0] + '.csv'
+        csv_file_path = os.path.join(directory, csv_file_name)
+        
+        diseases_df.to_csv(csv_file_path, index=False)
+        print(f'file saved to {csv_file_path}')
     
 
 if __name__ == '__main__':
