@@ -33,13 +33,12 @@ from tqdm import tqdm
 
 raw_data_path = '../orphanet_data/orphanet_xml'
 directory = '../orphanet_data/orphanet_csv'
-non_xml_file_path = '../orphanet_data/orphanet_non_xml'
+
 
 
 class Disease:
     
-    def __init__(self,
-                 classification_id, disorder_type, disorder_id,
+    def __init__(self, classification_id, disorder_type, disorder_id,
                  orpha_code, name, expert_link, meta_data):
         
         self.classification_id = classification_id
@@ -97,6 +96,7 @@ class OrphanetXMLParser:
         licence = self.root.find('.//Licence')
         
         if licence is not None:
+            
             metadata['licence_full_name'] = licence.findtext('FullName', default='Unknown')
             metadata['licence_short_name'] = licence.findtext('ShortIdentifier', default='Unknown')
             metadata['licence_legal_code'] = licence.findtext('LegalCode', default='Unknown')
@@ -104,16 +104,18 @@ class OrphanetXMLParser:
         classification_list = self.root.find('.//ClassificationList')
         
         if classification_list is not None:
+            
             metadata['classification_count'] = classification_list.attrib.get('count', 'Unknown')
-
             classification = classification_list.find('.//Classification')
             
             if classification is not None:
+                
                 metadata['classification_id'] = classification.attrib.get('id','unknown')
                 metadata['orpha_number'] = classification.findtext('OrphaNumber', default='Unknown')
                 metadata['classification_name'] = classification.findtext('Name', default='Unknown')
         
         return metadata
+    
         
     def parse_diseases(self):
         
@@ -151,6 +153,7 @@ class OrphanetXMLParser:
 
 
 def get_xml_files(directory):
+    
     return [os.path.join(root, file)\
         for root, _, files in os.walk(directory)\
             for file in files if file.endswith('.xml')]
@@ -174,6 +177,7 @@ def process_progress_bar(xml_files): # might be useful for later
 
 
 def process_xml_files(xml_files, directory):
+    
     for xml_file in tqdm(xml_files, desc="Processing XML Files"):
         parser = OrphanetXMLParser(xml_file)
         diseases = parser.parse_diseases()
@@ -194,7 +198,6 @@ def main():
 
 
 if __name__ == '__main__':
-    
     main()
     
 
