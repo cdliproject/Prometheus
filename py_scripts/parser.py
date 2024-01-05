@@ -8,7 +8,7 @@ useful urls =
 @themkdemiiir stated:
 
     The project involves creating a new parser to effectively 
-    manage and integrate the comprehensive rare diseases dataset
+    manage and integra te the comprehensive rare diseases dataset
     from Orphanet, which is available on their Orphanet Scientific Knowledge
     Files website. This data is rich in content, including rare disease alignments
     with various medical classifications like SNOMED CT, ICD-10, ICD-11, OMIM, UMLS, MeSH, MedDRA, and GARD. 
@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 import h5py
 import numpy as np
 from recall.meta import meta
+import json
 
 
 orphanet_raw_xml = '../orphanet_data/orphanet_xml'
@@ -179,25 +180,32 @@ def get_xml_files(directory_to):
 def write_to_hdf5(diseases, hdf5_file_path):
     with h5py.File(hdf5_file_path, 'w') as hdf_file:
         for disease in diseases:
-            # Debugging purposes
-            print(f"Debug: Writing disease to HDF5 - {disease}")
+            # Use disorder_id as group name, ensure it's a string
+            group_name = str(disease.disorder_id)
+            # Check if group already exists to avoid "name already exists" error
+            if group_name not in hdf_file:
+                group = hdf_file.create_group(group_name)
+            else:
+                # If group exists, get the group
+                group = hdf_file[group_name]
             
-            group = hdf_file.create_group(str(disease.disorder_id))
-            disease_dict = disease.to_dict()
-            for key, value in disease_dict.items():
-
-                if isinstance(value, str):
-                    value = np.array([value], dtype=h5py.string_dtype(encoding='utf-8'))
+            for key, value in disease.to_dict().items():
+                if isinstance(value, dict):  # Convert dict to JSON string
+                    value = json.dumps(value)
+                    dtype = h5py.string_dtype(encoding='utf-8')
+                elif isinstance(value, str):
+                    dtype = h5py.string_dtype(encoding='utf-8')
                 elif isinstance(value, int):
-                    value = np.array([value], dtype='i8')  # 'i8' for integer
-                elif isinstance(value, list):
-                    value = np.array(value)
+                    dtype = 'i8'  # 'i8' for integer
                 else:
                     print(f"Unexpected data type for key {key}: {type(value)}")
-                    continue # Skip this key
-                
-                print(f"Debug: Creating dataset - Key: {key}, Value: {value}")
-                group.create_dataset(key, data=value)
+                    continue
+
+                if key in group:
+                    del group[key]
+
+                value_array = np.array([value], dtype=dtype)
+                group.create_dataset(key, data=value_array)
                 
                 
 def main():
