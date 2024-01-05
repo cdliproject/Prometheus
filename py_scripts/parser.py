@@ -28,16 +28,17 @@ The data 'en_product3_181.xml' is a 4.1MB for rare neurological diseases.
 import lxml.etree as ET
 import os
 from tqdm import tqdm
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import h5py
 import numpy as np
-
+from recall.meta import meta
 
 
 orphanet_raw_xml = '../orphanet_data/orphanet_xml'
 directory_to_hdf5 = '../orphanet_data/orphanet_hdf5'
 directory_to_csv = '../orphanet_data/orphanet_csv'
 
+@dataclass
 class Disease:
     
     classification_id: int
@@ -46,11 +47,10 @@ class Disease:
     orpha_code: int
     name: str
     expert_link: str
-    meta_data: dict
+    meta_data: dict = field(default_factory=dict)
     
-    ## additional fileds as needed can be added here
-    
-    # genetic_inforrmation: str -> None
+    ## additional fileds as needed can be added here    
+    # genetic_inforrmation: str = None
     # symptomology: str -> None
     #...
     
@@ -73,8 +73,8 @@ class Disease:
 class OrphanetXMLParser:
     
     def __init__(self,xml_file): # tree structure of the xml file
-        
-        self.tree = ET.parse(xml_file)
+        self.xml_file = xml_file
+        self.tree = ET.parse(self.xml_file)
         self.root = self.tree.getroot()
         self.meta_data = self.extract_meta_data()
         
@@ -88,22 +88,12 @@ class OrphanetXMLParser:
         or Orpha Number (dont confuse it with orpha code).
         """
         
-        metadata = {
-            
-            'licence_full_name' : 'Unknown',
-            'licence_short_name' : 'Unknown',
-            'licence_legal_code' : 'Unknown',
-            'classification_count' : 'Unknown',
-            'classification_id' : 'Unknown',
-            'orpha_number' : 'Unknown',
-            'classification_name' : 'Unknown'
-            
-        }
+        initial_meta_data = {}
+        metadata = meta(initial_meta_data)
         
         licence = self.root.find('.//Licence')
         
         if licence is not None:
-            
             metadata['licence_full_name'] = licence.findtext('FullName', default='Unknown')
             metadata['licence_short_name'] = licence.findtext('ShortIdentifier', default='Unknown')
             metadata['licence_legal_code'] = licence.findtext('LegalCode', default='Unknown')
@@ -111,54 +101,31 @@ class OrphanetXMLParser:
         classification_list = self.root.find('.//ClassificationList')
         
         if classification_list is not None:
-            
             metadata['classification_count'] = classification_list.attrib.get('count', 'Unknown')
             classification = classification_list.find('.//Classification')
             
             if classification is not None:
-                
                 metadata['classification_id'] = classification.attrib.get('id','unknown')
                 metadata['orpha_number'] = classification.findtext('OrphaNumber', default='Unknown')
                 metadata['classification_name'] = classification.findtext('Name', default='Unknown')
         
         return metadata
     
-        
-    def parse_diseases(self):
-        
-        diseases = [] # list of diseases
-        
-        classification_id = self.root.find('.//ClassificationList/Classification')
-        classification_id = classification_id.attrib.get('id','Unknown')\
-            if classification_id is not None else 'Unknown'
-            
-        for clls in self.root.findall('.//ClassificationNode'): # find all the disorders, nested in the root 
-                        
-            disorder_id = clls.find('.//Disorder').attrib.get('id', 'unknown')\
-                if clls.find('.//Disorder') is not None else 'Unknown' # find the disorder id, nested in the disorder
-                
-            disorder_type = clls.find('.//DisorderType/Name').text\
-                if clls.find('.//DisorderType/Name') is not None else 'Unknown' # find the disorder type, nested in the disorder
-            
-            orpha_code = clls.find('.//OrphaCode').text\
-                if clls.find('.//OrphaCode') is not None else 'Unknown' # find the orpha code, nested in the disorder
-            
-            name = clls.find('.//Name').text\
-                if clls.find('.//Name') is not None else 'Unknown' # find the name, nested in the disorder
-                
-            expert_link = clls.find('.//ExpertLink').text\
-                if clls.find('.//ExpertLink') is not None else 'Unknown' # find the expert link, nested in the disorder
-            
-            disease = Disease( classification_id, disorder_type, disorder_id,\
-                            orpha_code, name, expert_link, self.meta_data)    # create a disease object
-            
-            diseases.append(disease)
-            
-        return diseases
     
     def iter_parse_diseases(self):
         
-        for _, elem in ET.etree.iterparse(self.xml_file, events=('end',), tag='Disorder'):
+        for event, elem in ET.iterparse(self.xml_file, events=('end',), tag='Disorder'):
+            disorder_id_str = elem.attrib.get('id', 'Unknown')
+            classification_id = 0
+            
+            if disorder_id_str != 'Unknown':
+                try:
+                    disorder_id = int(disorder_id_str)
+                except ValueError:
+                    print(f'Error: {disorder_id_str} is not a valid disorder id')
+                    disorder_id = 0
+                    
+                    
             disorder_id = elem.attrib.get('id', 'unknown') # find the disorder id, nested in the disorder
             disorder_type = elem.find('.//DisorderType/Name').text\
                 if elem.find('.//DisorderType/Name') is not None else 'Unknown' # find the disorder type, nested in the disorder
@@ -171,15 +138,19 @@ class OrphanetXMLParser:
             classification_id = 'Extracted ID'
             meta_data = self.extract_meta_data()
             
-            diseases =\
+            disease =\
+            \
             Disease(
-                classification_id, disorder_type,\
-                disorder_id, orpha_code,\
-                name, expert_link,\
-                meta_data
+                classification_id=int(classification_id),\
+                disorder_type=disorder_id,\
+                disorder_id=disorder_type,\
+                orpha_code=int(orpha_code) if orpha_code != 'Unknown' else 0,\
+                name=name,\
+                expert_link=expert_link,\
+                meta_data=meta_data
                 )
 
-            yield diseases
+            yield disease
             elem.clear()
         
         
@@ -195,14 +166,16 @@ def write_to_hdf5(diseases, hdf5_file_path):
     with h5py.File(hdf5_file_path, 'w') as hdf_file:
         for disease in diseases:
             group = hdf_file.create_group(str(disease.disorder_id))
-            disease_dict = disease.to_dict()
             for key, value in disease.to_dict().items():
-                group.create_dataset(key, data=np.array(value, dtype='S'))
+                if isinstance(value, (int, str)):
+                    value = [value]
+                
+                value_array = np.array(value)
+                group.create_dataset(key, data=value_array)
                 
                 
-    
-
 def main():
+    
     os.makedirs(directory_to_hdf5, exist_ok=True)
     xml_files = get_xml_files(orphanet_raw_xml)
     
