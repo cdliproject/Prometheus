@@ -115,32 +115,45 @@ class OrphanetXMLParser:
     
     def iter_parse_diseases(self):
         for event, elem in ET.iterparse(self.xml_file, events=('end',), tag='Disorder'):
-            disorder_id_str = elem.attrib.get('id', 'Unknown')
+            # Initialize variables with default values
             disorder_id = 0
-            print(f"Debug: Parsed disease - ID: {disorder_id}, Name: {name}, OrphaCode: {orpha_code}")
-
+            disorder_type = 'Unknown'
+            orpha_code = 0
+            name = 'Unknown'
+            expert_link = 'Unknown'
+            classification_id = 0
             
+
+            disorder_id_str = elem.attrib.get('id', 'Unknown')
             if disorder_id_str != 'Unknown':
                 try:
                     disorder_id = int(disorder_id_str)
                 except ValueError:
                     print(f'Error: {disorder_id_str} is not a valid disorder id')
-                
-            disorder_type = elem.find('.//DisorderType/Name').text\
-                if elem.find('.//DisorderType/Name') is not None else 'Unknown'
-            orpha_code_str = elem.find('.//OrphaCode').text\
-                if elem.find('.//OrphaCode') is not None else 'Unknown'
-            name = elem.find('.//Name').text\
-                if elem.find('.//Name') is not None else 'Unknown'
-            expert_link = elem.find('.//ExpertLink').text\
-                if elem.find('.//ExpertLink') is not None else 'Unknown'
             
-            classification_id = self.extract_classification_id(elem)
-            
+            disorder_type_elem = elem.find('.//DisorderType/Name')
+            if disorder_type_elem is not None:
+                disorder_type = disorder_type_elem.text
+
+            orpha_code_str = elem.find('.//OrphaCode')
+            if orpha_code_str is not None:
+                try:
+                    orpha_code = int(orpha_code_str.text)
+                except ValueError:
+                    print(f'Error: OrphaCode {orpha_code_str.text} is not a valid integer')
+
+            name_elem = elem.find('.//Name')
+            if name_elem is not None:
+                name = name_elem.text
+
+            expert_link_elem = elem.find('.//ExpertLink')
+            if expert_link_elem is not None:
+                expert_link = expert_link_elem.text
+
+            # a function or logic to extract classification_id needed here
+
             meta_data = self.extract_meta_data()
-            
-            orpha_code = int(orpha_code_str) if orpha_code_str.isdigit() else 0
-            
+
             disease = Disease(
                 classification_id=classification_id,
                 disorder_id=disorder_id,
@@ -153,6 +166,7 @@ class OrphanetXMLParser:
 
             yield disease
             elem.clear()
+
         
                 
 def get_xml_files(directory_to):
