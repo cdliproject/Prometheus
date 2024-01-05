@@ -29,25 +29,24 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 import os
 from tqdm import tqdm
+from dataclasses import dataclass
 
 
 raw_data_path = '../orphanet_data/orphanet_xml'
-directory = '../orphanet_data/orphanet_csv'
+directory_to = '../orphanet_data/orphanet_csv'
 
 
 
 class Disease:
     
-    def __init__(self, classification_id, disorder_type, disorder_id,
-                 orpha_code, name, expert_link, meta_data):
-        
-        self.classification_id = classification_id
-        self.disorder_id = disorder_id
-        self.disorder_type = disorder_type
-        self.orpha_code = orpha_code
-        self.name = name
-        self.expert_link = expert_link
-        self.meta_data = meta_data
+    classification_id: int
+    disorder_id: int
+    disorder_type: str
+    orpha_code: int
+    name: str
+    expert_link: str
+    meta_data: dict
+    
         
     def to_dict(self):
         
@@ -152,10 +151,10 @@ class OrphanetXMLParser:
         return diseases
 
 
-def get_xml_files(directory):
+def get_xml_files(directory_to):
     
     return [os.path.join(root, file)\
-        for root, _, files in os.walk(directory)\
+        for root, _, files in os.walk(directory_to)\
             for file in files if file.endswith('.xml')]
 
 
@@ -176,7 +175,7 @@ def process_progress_bar(xml_files): # might be useful for later
     return xml_file
 
 
-def process_xml_files(xml_files, directory):
+def process_xml_files(xml_files, directory_to):
     
     for xml_file in tqdm(xml_files, desc="Processing XML Files"):
         parser = OrphanetXMLParser(xml_file)
@@ -185,16 +184,16 @@ def process_xml_files(xml_files, directory):
         
         base_name = os.path.basename(xml_file)
         csv_file_name = os.path.splitext(base_name)[0] + '.csv'
-        csv_file_path = os.path.join(directory, csv_file_name)
+        csv_file_path = os.path.join(directory_to, csv_file_name)
         
         diseases_df.to_csv(csv_file_path, index=False)
         print(f'File saved to {csv_file_path}')
 
 
 def main():
-    os.makedirs(directory, exist_ok=True)
+    os.makedirs(directory_to, exist_ok=True)
     xml_files = get_xml_files(raw_data_path)
-    process_xml_files(xml_files, directory)
+    process_xml_files(xml_files, directory_to)
 
 
 if __name__ == '__main__':
