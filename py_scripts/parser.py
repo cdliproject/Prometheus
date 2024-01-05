@@ -25,17 +25,18 @@ The data 'en_product3_181.xml' is a 4.1MB for rare neurological diseases.
 
 """
 
-import pandas as pd
-import xml.etree.ElementTree as ET
+import lxml.etree as ET
 import os
 from tqdm import tqdm
 from dataclasses import dataclass
+import h5py
+import numpy as np
 
 
-raw_data_path = '../orphanet_data/orphanet_xml'
-directory_to = '../orphanet_data/orphanet_csv'
 
-
+orphanet_raw_xml = '../orphanet_data/orphanet_xml'
+directory_to_hdf5 = '../orphanet_data/orphanet_hdf5'
+directory_to_csv = '../orphanet_data/orphanet_csv'
 
 class Disease:
     
@@ -46,6 +47,12 @@ class Disease:
     name: str
     expert_link: str
     meta_data: dict
+    
+    ## additional fileds as needed can be added here
+    
+    # genetic_inforrmation: str -> None
+    # symptomology: str -> None
+    #...
     
         
     def to_dict(self):
@@ -61,6 +68,7 @@ class Disease:
             'MetaData': self.meta_data
             
         }
+        
         
 class OrphanetXMLParser:
     
@@ -123,10 +131,8 @@ class OrphanetXMLParser:
         classification_id = self.root.find('.//ClassificationList/Classification')
         classification_id = classification_id.attrib.get('id','Unknown')\
             if classification_id is not None else 'Unknown'
-        
             
         for clls in self.root.findall('.//ClassificationNode'): # find all the disorders, nested in the root 
-
                         
             disorder_id = clls.find('.//Disorder').attrib.get('id', 'unknown')\
                 if clls.find('.//Disorder') is not None else 'Unknown' # find the disorder id, nested in the disorder
@@ -147,10 +153,36 @@ class OrphanetXMLParser:
                             orpha_code, name, expert_link, self.meta_data)    # create a disease object
             
             diseases.append(disease)
-        
+            
         return diseases
+    
+    def iter_parse_diseases(self):
+        
+        for _, elem in ET.etree.iterparse(self.xml_file, events=('end',), tag='Disorder'):
+            disorder_id = elem.attrib.get('id', 'unknown') # find the disorder id, nested in the disorder
+            disorder_type = elem.find('.//DisorderType/Name').text\
+                if elem.find('.//DisorderType/Name') is not None else 'Unknown' # find the disorder type, nested in the disorder
+            orpha_code = elem.find('.//OrphaCode').text\
+                if elem.find('.//OrphaCode') is not None else 'Unknown' # find the orpha code, nested in the disorder
+            name = elem.find('.//Name').text\
+                if elem.find('.//Name') is not None else 'Unknown' # find the name, nested in the disorder
+            expert_link = elem.find('.//ExpertLink').text\
+                if elem.find('.//ExpertLink') is not None else 'Unknown' # find the expert link, nested in the disorder
+            classification_id = 'Extracted ID'
+            meta_data = self.extract_meta_data()
+            
+            diseases =\
+            Disease(
+                classification_id, disorder_type,\
+                disorder_id, orpha_code,\
+                name, expert_link,\
+                meta_data
+                )
 
-
+            yield diseases
+            elem.clear()
+        
+        
 def get_xml_files(directory_to):
     
     return [os.path.join(root, file)\
@@ -158,42 +190,27 @@ def get_xml_files(directory_to):
             for file in files if file.endswith('.xml')]
 
 
-
-def process_progress_bar(xml_files): # might be useful for later
-    doty = "."
-    returny = 0
-    for xml_file in tqdm(xml_files, desc=f"Processing XML Files{doty}]"):
-        while returny <= 4 :
-            doty += "."
-            returny += 1
-            if returny == 4:
-                doty = "."
-                returny = 0
-                break
-        yield xml_file
-        
-    return xml_file
-
-
-def process_xml_files(xml_files, directory_to):
+def write_to_hdf5(diseases, hdf5_file_path):
     
-    for xml_file in tqdm(xml_files, desc="Processing XML Files"):
-        parser = OrphanetXMLParser(xml_file)
-        diseases = parser.parse_diseases()
-        diseases_df = pd.DataFrame([disease.to_dict() for disease in diseases])
-        
-        base_name = os.path.basename(xml_file)
-        csv_file_name = os.path.splitext(base_name)[0] + '.csv'
-        csv_file_path = os.path.join(directory_to, csv_file_name)
-        
-        diseases_df.to_csv(csv_file_path, index=False)
-        print(f'File saved to {csv_file_path}')
-
+    with h5py.File(hdf5_file_path, 'w') as hdf_file:
+        for disease in diseases:
+            group = hdf_file.create_group(str(disease.disorder_id))
+            disease_dict = disease.to_dict()
+            for key, value in disease.to_dict().items():
+                group.create_dataset(key, data=np.array(value, dtype='S'))
+                
+                
+    
 
 def main():
-    os.makedirs(directory_to, exist_ok=True)
-    xml_files = get_xml_files(raw_data_path)
-    process_xml_files(xml_files, directory_to)
+    os.makedirs(directory_to_hdf5, exist_ok=True)
+    xml_files = get_xml_files(orphanet_raw_xml)
+    
+    for xml_file in tqdm(xml_files, desc="Processing XML files"):
+        parser = OrphanetXMLParser(xml_file)
+        hdf5_file_path = os.path.splitext(xml_file)[0] + '.h5'
+        
+        write_to_hdf5(parser.iter_parse_diseases(), hdf5_file_path)
 
 
 if __name__ == '__main__':
