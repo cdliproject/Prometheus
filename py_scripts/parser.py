@@ -3,7 +3,8 @@ useful urls =
             
             'https://stackoverflow.com/questions/2869564/xml-filtering-with-python'
             'https://stackoverflow.com/questions/1912434/how-do-i-parse-xml-in-python'
-
+            'https://stackoverflow.com/questions/64534477/what-is-the-difference-between-the-file-extensions-h5-hdf5-and-ckpt-and-which'
+            
 @themkdemiiir stated:
 
     The project involves creating a new parser to effectively 
@@ -113,42 +114,40 @@ class OrphanetXMLParser:
     
     
     def iter_parse_diseases(self):
-        
         for event, elem in ET.iterparse(self.xml_file, events=('end',), tag='Disorder'):
             disorder_id_str = elem.attrib.get('id', 'Unknown')
-            classification_id = 0
+            disorder_id = 0
             
             if disorder_id_str != 'Unknown':
                 try:
                     disorder_id = int(disorder_id_str)
                 except ValueError:
                     print(f'Error: {disorder_id_str} is not a valid disorder id')
-                    disorder_id = 0
-                    
-                    
-            disorder_id = elem.attrib.get('id', 'unknown') # find the disorder id, nested in the disorder
+                
             disorder_type = elem.find('.//DisorderType/Name').text\
-                if elem.find('.//DisorderType/Name') is not None else 'Unknown' # find the disorder type, nested in the disorder
-            orpha_code = elem.find('.//OrphaCode').text\
-                if elem.find('.//OrphaCode') is not None else 'Unknown' # find the orpha code, nested in the disorder
+                if elem.find('.//DisorderType/Name') is not None else 'Unknown'
+            orpha_code_str = elem.find('.//OrphaCode').text\
+                if elem.find('.//OrphaCode') is not None else 'Unknown'
             name = elem.find('.//Name').text\
-                if elem.find('.//Name') is not None else 'Unknown' # find the name, nested in the disorder
+                if elem.find('.//Name') is not None else 'Unknown'
             expert_link = elem.find('.//ExpertLink').text\
-                if elem.find('.//ExpertLink') is not None else 'Unknown' # find the expert link, nested in the disorder
-            classification_id = 'Extracted ID'
+                if elem.find('.//ExpertLink') is not None else 'Unknown'
+            
+            classification_id = self.extract_classification_id(elem)
+            
             meta_data = self.extract_meta_data()
             
-            disease =\
-            \
-            Disease(
-                classification_id=int(classification_id),\
-                disorder_type=disorder_id,\
-                disorder_id=disorder_type,\
-                orpha_code=int(orpha_code) if orpha_code != 'Unknown' else 0,\
-                name=name,\
-                expert_link=expert_link,\
+            orpha_code = int(orpha_code_str) if orpha_code_str.isdigit() else 0
+            
+            disease = Disease(
+                classification_id=classification_id,
+                disorder_id=disorder_id,
+                disorder_type=disorder_type,
+                orpha_code=orpha_code,
+                name=name,
+                expert_link=expert_link,
                 meta_data=meta_data
-                )
+            )
 
             yield disease
             elem.clear()
@@ -162,16 +161,23 @@ def get_xml_files(directory_to):
 
 
 def write_to_hdf5(diseases, hdf5_file_path):
-    
     with h5py.File(hdf5_file_path, 'w') as hdf_file:
         for disease in diseases:
             group = hdf_file.create_group(str(disease.disorder_id))
-            for key, value in disease.to_dict().items():
-                if isinstance(value, (int, str)):
-                    value = [value]
-                
-                value_array = np.array(value)
-                group.create_dataset(key, data=value_array)
+            disease_dict = disease.to_dict()
+            for key, value in disease_dict.items():
+
+                if isinstance(value, str):
+                    value = np.array([value], dtype=h5py.string_dtype(encoding='utf-8'))
+                elif isinstance(value, int):
+                    value = np.array([value], dtype='i8')  # 'i8' for integer
+                elif isinstance(value, list):
+                    value = np.array(value)
+                else:
+                    print(f"Unexpected data type for key {key}: {type(value)}")
+                    continue # Skip this key
+
+                group.create_dataset(key, data=value)
                 
                 
 def main():
@@ -180,12 +186,15 @@ def main():
     xml_files = get_xml_files(orphanet_raw_xml)
     
     for xml_file in tqdm(xml_files, desc="Processing XML files"):
-        parser = OrphanetXMLParser(xml_file)
-        hdf5_file_path = os.path.splitext(xml_file)[0] + '.h5'
+        try:
+            parser = OrphanetXMLParser(xml_file)
+            hdf5_file_path = os.path.splitext(xml_file)[0] + '.h5'
+            write_to_hdf5(parser.iter_parse_diseases(), hdf5_file_path)
+            
+        except Exception as exc:
+            print(f"Error processing file {xml_file}: {exc}")
+            continue
         
-        write_to_hdf5(parser.iter_parse_diseases(), hdf5_file_path)
-
-
 if __name__ == '__main__':
     main()
     
