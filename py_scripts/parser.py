@@ -117,6 +117,8 @@ class OrphanetXMLParser:
         for event, elem in ET.iterparse(self.xml_file, events=('end',), tag='Disorder'):
             disorder_id_str = elem.attrib.get('id', 'Unknown')
             disorder_id = 0
+            print(f"Debug: Parsed disease - ID: {disorder_id}, Name: {name}, OrphaCode: {orpha_code}")
+
             
             if disorder_id_str != 'Unknown':
                 try:
@@ -152,7 +154,7 @@ class OrphanetXMLParser:
             yield disease
             elem.clear()
         
-        
+                
 def get_xml_files(directory_to):
     
     return [os.path.join(root, file)\
@@ -163,6 +165,9 @@ def get_xml_files(directory_to):
 def write_to_hdf5(diseases, hdf5_file_path):
     with h5py.File(hdf5_file_path, 'w') as hdf_file:
         for disease in diseases:
+            # Debugging purposes
+            print(f"Debug: Writing disease to HDF5 - {disease}")
+            
             group = hdf_file.create_group(str(disease.disorder_id))
             disease_dict = disease.to_dict()
             for key, value in disease_dict.items():
@@ -176,7 +181,8 @@ def write_to_hdf5(diseases, hdf5_file_path):
                 else:
                     print(f"Unexpected data type for key {key}: {type(value)}")
                     continue # Skip this key
-
+                
+                print(f"Debug: Creating dataset - Key: {key}, Value: {value}")
                 group.create_dataset(key, data=value)
                 
                 
@@ -184,6 +190,8 @@ def main():
     
     os.makedirs(directory_to_hdf5, exist_ok=True)
     xml_files = get_xml_files(orphanet_raw_xml)
+    
+    print(f"Debug: XML files to be processed - {xml_files}")
     
     for xml_file in tqdm(xml_files, desc="Processing XML files"):
         try:
